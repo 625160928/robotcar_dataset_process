@@ -11586,19 +11586,35 @@ def get_gps_route(data_path):
     return x_route,y_route,theta_route
 
 def read_image_dataset(path):
-    dataset=None
+    dataset=GroundTruth()
 
     csvFile = open(path, "r")
     reader = csv.reader(csvFile)
     for item in reader:
         if reader.line_num == 1:
             continue
-        print(item[3])
-    return None
+        # print(item[0])
+        diff_time=float(item[2])
+        if abs(diff_time)>10000:
+            continue
+        # print(diff_time)
+        name=int(item[0])
+        x,y,theta=float(item[7]),float(item[8]),float(item[16])*180/math.pi
+        dataset.match_filename_list.append(name)
+        dataset.north_list.append(x)
+        dataset.east_list.append(y)
+        dataset.yaw_list.append(theta)
+        # print(name,x,y,theta)
+    return dataset
 
 def gen_label_from_diff_dataset(dataset1,dataset2):
     pass
 
+def save_label(label_list,name):
+    with open(name, 'w', newline='') as student_file:
+               writer = csv.writer(student_file)
+               for f in label_list:
+                   writer.writerow(f)
 def main():
 
     # draw_gps_graph()
@@ -11606,11 +11622,23 @@ def main():
     files_path = []
     header = './'
     files_path.append('2014-12-02-15-30-08.csv')
-    # files_path.append('2014-12-10-18-10-50.csv')
+    files_path.append('2014-12-10-18-10-50.csv')
     # files_path.append('2015-11-13-10-28-08.csv')
     dataset_list=[]
     for i in range(len(files_path)):
         dataset_list.append(read_image_dataset(header+files_path[i]))
+
+    for i in range(len(files_path)-1):
+        for j in range(i+1,len(files_path)):
+            h1=files_path[i].split('.')[0]
+            h2=files_path[j].split('.')[0]
+            save_name='./'+h1+"_comp_"+h2+'.csv'
+
+            label_list=[[0,0,0],[1,1,1]]
+
+            print(save_name)
+
+            save_label(label_list,save_name)
 
 
 
