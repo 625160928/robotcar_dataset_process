@@ -1,0 +1,2 @@
+# robotcar_dataset_process
+菜鸡在大佬的帮助下试图从robotcar数据集中生成一些回环检测的标签数据
