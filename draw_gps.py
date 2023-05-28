@@ -3,7 +3,7 @@ import time
 import math
 import matplotlib.pyplot as plt
 import csv
-
+import numpy as np
 
 def print_list(name,x_list):
     '''print gps path'''
@@ -11607,14 +11607,102 @@ def read_image_dataset(path):
         # print(name,x,y,theta)
     return dataset
 
-def gen_label_from_diff_dataset(dataset1,dataset2):
-    pass
 
-def save_label(label_list,name):
-    with open(name, 'w', newline='') as student_file:
-               writer = csv.writer(student_file)
-               for f in label_list:
-                   writer.writerow(f)
+def gen_label_from_diff_dataset(dataset1,dataset2):
+
+    dis_range=20
+    ang_range=70
+    false_dis_range=[30,50]
+
+
+    dis_label_list=[]
+    ang_label_list=[]
+    false_dis_label_list=[]
+    false_ang_label_list=[]
+
+    for img1_id in range(len(dataset1.match_filename_list)):
+         # print(len(dataset2.match_filename_list))
+         img1_name=dataset1.match_filename_list[img1_id]
+         img1_x=dataset1.north_list[img1_id]
+         img1_y=dataset1.east_list[img1_id]
+         img1_theta=dataset1.yaw_list[img1_id]
+
+         #数组计算所选图片到第二个数据集里所有图片的距离
+         diff_x_list = np.array(dataset2.north_list) - np.ones_like(np.array(dataset2.north_list)) * img1_x
+         diff_y_list = np.array(dataset2.east_list) - np.ones_like(np.array(dataset2.east_list)) * img1_y
+         diff_dis_list=np.sqrt(np.square(diff_x_list)+np.square(diff_y_list))
+         diff_theta_list = np.array(dataset2.yaw_list) - np.ones_like(np.array(dataset2.yaw_list)) * img1_theta
+
+         #数组筛选距离和角度在一片阈值的图片
+         pd_distance_ids=np.where(diff_dis_list<dis_range)[0]
+         pd_ang_ids=np.where(np.abs(diff_theta_list) <ang_range)[0]
+
+         #将符合条件的选出，做交集
+         pd_similar_ids=np.intersect1d(pd_distance_ids,pd_ang_ids,assume_unique=True)
+         # print(pd_similar_ids)
+
+         if len(pd_similar_ids)>0:
+            #将所选的图片取出到一个小的list里面，
+            sim_img_list=np.array(dataset2.match_filename_list)[pd_similar_ids]
+            sim_dis_list=diff_dis_list[pd_similar_ids]
+            sim_ang_list=diff_theta_list[pd_similar_ids]
+
+            dis_id_min=np.argmin(sim_dis_list)
+            theta_id_min=np.argmin(sim_ang_list)
+
+            # for i in range(len(sim_dis_list)):
+            #       print(dis_id_min,i,sim_dis_list[i],sim_img_list[i])
+
+            dis_label_list.append([img1_name,sim_img_list[dis_id_min],1])
+            ang_label_list.append([img1_name,sim_img_list[theta_id_min],1])
+            # print(dataset2.match_filename_list[dis_id_min]==sim_img_list[dis_id_min],dataset2.match_filename_list[theta_id_min]==sim_img_list[theta_id_min])
+
+         false_pd_distance_ids1=np.where(diff_dis_list<false_dis_range[1])[0]
+         false_pd_distance_ids2=np.where(diff_dis_list>false_dis_range[0])[0]
+         pd_flase_ids=np.intersect1d(false_pd_distance_ids1,false_pd_distance_ids2,assume_unique=True)
+         if len(pd_flase_ids)>0:
+            false_img_list = np.array(dataset2.match_filename_list)[pd_flase_ids]
+            false_dis_list = diff_dis_list[pd_flase_ids]
+            false_ang_list = diff_theta_list[pd_flase_ids]
+
+            false_dis_id_max=np.argmax(false_dis_list)
+            false_theta_id_max=np.argmax(false_ang_list)
+
+            false_dis_label_list.append([img1_name,false_img_list[false_dis_id_max],0])
+            false_ang_label_list.append([img1_name,false_img_list[false_theta_id_max],0])
+
+            # print('sim ',img1_name,sim_img_list[dis_id_min],sim_dis_list[dis_id_min],sim_ang_list[dis_id_min])
+            # print('sim ',img1_name,sim_img_list[theta_id_min],sim_dis_list[theta_id_min],sim_ang_list[theta_id_min])
+            # print('diff ',img1_name,false_img_list[false_dis_id_max],false_dis_list[false_dis_id_max],false_ang_list[false_dis_id_max])
+            # print('diff ',img1_name,false_img_list[false_theta_id_max],false_dis_list[false_theta_id_max],false_ang_list[false_theta_id_max])
+
+
+
+
+         # print(len(false_pd_distance_ids),false_pd_distance_ids,img1_name)
+         # for i in range(len(false_pd_distance_ids)):
+         #     ind=false_pd_distance_ids[i]
+         #     print(ind,)
+         # if img1_id>10:
+         #     break
+
+    return dis_label_list,ang_label_list,false_dis_label_list,false_ang_label_list
+
+def save_label(label_list,name,h1,h2):
+    new_label_list=[]
+    for f in label_list:
+        arr = [h1 + '/stereo/centre/' + str(f[0]) + '.png',h2 + '/stereo/centre/' + str(f[1]) + '.png',f[2]]
+        new_label_list.append(arr)
+
+    with open(name+'.csv', 'w', newline='') as student_file:
+         writer = csv.writer(student_file)
+         for f in new_label_list:
+             writer.writerow(f)
+
+    with open(name+'.txt', 'w') as f:
+         for l in new_label_list:
+             f.write(str(l[0])+','+str(l[1])+','+str(l[2])+'\n')
+
 def main():
 
     # draw_gps_graph()
@@ -11623,24 +11711,31 @@ def main():
     header = './'
     files_path.append('2014-12-02-15-30-08.csv')
     files_path.append('2014-12-10-18-10-50.csv')
-    # files_path.append('2015-11-13-10-28-08.csv')
+    files_path.append('2015-11-13-10-28-08.csv')
     dataset_list=[]
     for i in range(len(files_path)):
         dataset_list.append(read_image_dataset(header+files_path[i]))
 
+    start_time=time.time()
     for i in range(len(files_path)-1):
         for j in range(i+1,len(files_path)):
             h1=files_path[i].split('.')[0]
             h2=files_path[j].split('.')[0]
-            save_name='./'+h1+"_comp_"+h2+'.csv'
-
-            label_list=[[0,0,0],[1,1,1]]
+            save_name='./label/'+h1+"_comp_"+h2
 
             print(save_name)
 
-            save_label(label_list,save_name)
+            dis_label_list,ang_label_list,false_dis_label_list,false_ang_label_list=gen_label_from_diff_dataset(dataset_list[i],dataset_list[j])
+
+            save_label(dis_label_list,save_name+'_true_mindis',h1,h2)
+            save_label(ang_label_list,save_name+'_true_minang',h1,h2)
+            save_label(false_dis_label_list,save_name+'_false_maxdi',h1,h2)
+            save_label(false_ang_label_list,save_name+'_false_maxang',h1,h2)
 
 
+            end_time=time.time()
+            print('花费时间 ',(end_time-start_time),'s')
+            start_time=end_time
 
 
 
@@ -11649,6 +11744,7 @@ if __name__ == '__main__':
     start_time=time.time()
 
     main()
+    # print(np.intersect1d([1,2,3],[4,5,6]))
 
     end_time=time.time()
     print('花费时间 ',(end_time-start_time),'s')
